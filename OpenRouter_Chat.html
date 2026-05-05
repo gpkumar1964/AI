@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenRouter Chat</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-card: #161b22;
+    --bg-msg-user: #1c2128;
+    --bg-msg-ass: #0e1117;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --accent: #58a6ff;
+    --input-bg: #1f242d;
+    --warning: #f0883e;
+  }
+  [data-theme="light"] {
+    --bg: #ffffff;
+    --bg-card: #f6f8fa;
+    --bg-msg-user: #dbeafe;
+    --bg-msg-ass: #f1f3f4;
+    --border: #d0d7de;
+    --text: #24292f;
+    --accent: #0969da;
+    --input-bg: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    padding: .8rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    flex-wrap: wrap;
+  }
+  header h1 { margin: 0; font-size: 1.1rem; flex-grow: 1; }
+  select, input[type="password"], button {
+    font-size: .85rem;
+    padding: .4rem .6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--text);
+  }
+  #themeToggle { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+  #status {
+    font-size: .8rem;
+    padding: .4rem 1rem;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    min-height: 2.2rem;
+    display: flex;
+    align-items: center;
+  }
+  #status.warning { background: rgba(240, 136, 62, 0.2); color: var(--warning); }
+  #chatContainer {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+  }
+  .msg {
+    max-width: 75%;
+    padding: .7rem 1rem;
+    border-radius: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .msg.user { align-self: flex-end; background: var(--bg-msg-user); border: 1px solid var(--border); }
+  .msg.assistant { align-self: flex-start; background: var(--bg-msg-ass); border: 1px solid var(--border); }
+  #inputArea { background: var(--bg-card); border-top: 1px solid var(--border); padding: .8rem 1rem; }
+  #previewBar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
+  .previewItem {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: .3rem .5rem; display: flex; align-items: center; gap: .4rem; font-size: .8rem;
+  }
+  .previewItem img { max-height: 40px; border-radius: 4px; }
+  .previewItem .remove { background: none; border: none; color: #ff4d4d; cursor: pointer; font-size: 1rem; padding: 0 .2rem; }
+  #inputRow { display: flex; align-items: flex-end; gap: .5rem; }
+  .iconBtn {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--accent); font-size: 1.2rem; cursor: pointer;
+    width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .iconBtn:hover { background: var(--input-bg); }
+  .iconBtn.recording { color: #ff4d4d; border-color: #ff4d4d; animation: pulse 1.2s infinite; }
+  .iconBtn:disabled { opacity: .4; cursor: not-allowed; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+  #promptInput {
+    flex: 1; font-size: .9rem; padding: .6rem; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--input-bg); color: var(--text);
+    resize: none; min-height: 40px; max-height: 120px; font-family: inherit;
+  }
+  #promptInput:focus { outline: none; border-color: var(--accent); }
+  #sendBtn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: .6rem 1.2rem; cursor: pointer; font-size: .9rem; height: 40px; }
+  #sendBtn:hover { opacity: .9; }
+  #sendBtn:disabled { opacity: .5; cursor: not-allowed; }
+  #controls { display: flex; align-items: center; gap: 1rem; margin-top: .5rem; font-size: .8rem; flex-wrap: wrap; }
+  #controls label { display: flex; align-items: center; gap: .3rem; cursor: pointer; }
+  #permBanner {
+    display: none;
+    background: rgba(240, 136, 62, 0.15);
+    border: 1px solid var(--warning);
+    border-radius: 6px;
+    padding: .6rem 1rem;
+    margin-bottom: .5rem;
+    font-size: .8rem;
+  }
+  #permBanner a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body data-theme="dark">
+
+<header>
+  <h1>🤖 OpenRouter Chat</h1>
+  <label for="modelSelect">Model:</label>
+  <select id="modelSelect"><option value="">Loading…</option></select>
+  <label for="apiKey">Key:</label>
+  <input type="password" id="apiKey" placeholder="sk-or-v1-..." style="width:180px">
+  <button id="themeToggle">☀️ Light</button>
+</header>
+
+<div id="status">Ready</div>
+
+<div id="permBanner">
+  ⚠️ <strong>Microphone permission keeps asking?</strong><br>
+  → Click the 🔒 icon in Chrome's address bar → Set Microphone to <strong>Allow</strong><br>
+  → Or run locally: <code>python -m http.server 8000</code> then open <a>http://localhost:8000</a>
+</div>
+
+<div id="chatContainer"></div>
+
+<div id="inputArea">
+  <div id="previewBar"></div>
+  <div id="inputRow">
+    <button class="iconBtn" id="micBtn" title="Click to speak, click again to stop">🎤</button>
+    <button class="iconBtn" id="attachBtn" title="Attach images">📎</button>
+    <textarea id="promptInput" placeholder="Type or speak a message... (Enter to send)" rows="1"></textarea>
+    <button id="sendBtn">Send</button>
+  </div>
+  <div id="controls">
+    <label><input type="checkbox" id="speakToggle"> 🔊 Speak replies</label>
+    <label><input type="checkbox" id="saveHistory" checked> 💾 Save history</label>
+    <button id="clearBtn" style="background:none;border:1px solid var(--border);color:var(--text);padding:.2rem .5rem;cursor:pointer;border-radius:4px;font-size:.8rem;">🗑️ Clear</button>
+    <button id="testMicBtn" style="background:none;border:1px solid var(--warning);color:var(--warning);padding:.2rem .5rem;cursor:pointer;border-radius:4px;font-size:.8rem;">🎤 Test Mic Permission</button>
+  </div>
+</div>
+
+<input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+
+<script>
+// ========== CHECK IF HTTPS or LOCALHOST ==========
+const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+if (!isSecure) {
+  document.getElementById('permBanner').style.display = 'block';
+}
+
+// ========== THEME ==========
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const isLight = document.body.dataset.theme === 'light';
+  document.body.dataset.theme = isLight ? 'dark' : 'light';
+  document.getElementById('themeToggle').textContent = isLight ? '☀️ Light' : '🌙 Dark';
+});
+
+// ========== LOAD MODELS ==========
+(async () => {
+  const sel = document.getElementById('modelSelect');
+  const status = document.getElementById('status');
+  try {
+    const resp = await fetch('https://openrouter.ai/api/v1/models');
+    const data = await resp.json();
+    const models = (data.data || []).filter(m => {
+      const p = parseFloat(m.pricing?.prompt) || Infinity;
+      const c = parseFloat(m.pricing?.completion) || Infinity;
+      return (p === 0 && c === 0) ||
+        (m.tags || []).some(t => t.toLowerCase().includes('free')) ||
+        m.id.toLowerCase().includes('free');
+    });
+    sel.innerHTML = models.length
+      ? models.sort((a, b) => a.id.localeCompare(b.id)).map(m => `<option value="${m.id}">${m.id}</option>`).join('')
+      : '<option value="">No free models</option>';
+    if (models.length) status.textContent = `✅ ${models.length} model(s) loaded`;
+  } catch (err) {
+    sel.innerHTML = '<option value="">Error loading</option>';
+    status.textContent = `❌ ${err.message}`;
+  }
+})();
+
+// ========== CHAT ==========
+const chatContainer = document.getElementById('chatContainer');
+let messages = [];
+
+function addMessage(role, content) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  if (Array.isArray(content)) {
+    div.innerHTML = content.map(p => p.type === 'text' ? escapeHtml(p.text) : `<img src="${p.image_url.url}" style="max-width:200px;border-radius:8px;margin:5px 0;">`).join('');
+  } else {
+    div.textContent = content;
+  }
+  chatContainer.appendChild(div);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+// ========== VOICE INPUT ==========
+let isRecording = false;
+let currentRecognition = null;
+let micPermissionGranted = false;
+
+async function requestMicPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(track => track.stop()); // Stop immediately, we just wanted permission
+    micPermissionGranted = true;
+    return true;
+  } catch (err) {
+    console.error('Mic permission denied:', err);
+    return false;
+  }
+}
+
+if (window.SpeechRecognition || window.webkitSpeechRecognition) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById('micBtn');
+  micBtn.style.display = 'flex';
+
+  // Request permission once on page load
+  requestMicPermission().then(granted => {
+    const status = document.getElementById('status');
+    if (granted) {
+      status.textContent = '✅ Microphone access granted. Click 🎤 to speak.';
+    } else {
+      status.textContent = '⚠️ Microphone access denied. Click "Test Mic Permission" below.';
+      isRecording = false;
+    }
+  });
+
+  micBtn.addEventListener('click', async () => {
+    if (isRecording && currentRecognition) {
+      currentRecognition.stop();
+      return;
+    }
+
+    // Request permission if not granted yet
+    if (!micPermissionGranted) {
+      const status = document.getElementById('status');
+      status.textContent = '⏳ Requesting microphone permission...';
+      const granted = await requestMicPermission();
+      if (!granted) {
+        status.textContent = '❌ Microphone access denied. Please allow microphone in browser settings.';
+        return;
+      }
+      status.textContent = '✅ Microphone access granted! Now listening...';
+    }
+
+    const recognition = new SpeechRecognition();
+    currentRecognition = recognition;
+
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+      isRecording = true;
+      micBtn.classList.add('recording');
+      document.getElementById('status').textContent = '🎙️ Listening... Speak now!';
+    };
+
+    recognition.onresult = (e) => {
+      let transcript = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        transcript += e.results[i][0].transcript;
+      }
+      document.getElementById('promptInput').value = transcript.trim();
+      if (e.results[e.results.length - 1].isFinal) {
+        document.getElementById('status').textContent = `✅ Captured: "${transcript.trim()}"`;
+      }
+    };
+
+    recognition.onend = () => {
+      isRecording = false;
+      micBtn.classList.remove('recording');
+      currentRecognition = null;
+      const val = document.getElementById('promptInput').value.trim();
+      document.getElementById('status').textContent = val ? '✅ Ready to send' : '🎤 Click mic to speak again';
+    };
+
+    recognition.onerror = (e) => {
+      isRecording = false;
+      micBtn.classList.remove('recording');
+      currentRecognition = null;
+      if (e.error === 'not-allowed') {
+        micPermissionGranted = false;
+        document.getElementById('status').textContent = '❌ Mic blocked. Click "Test Mic Permission" to fix.';
+      } else if (e.error === 'no-speech') {
+        document.getElementById('status').textContent = '⚠️ No speech detected. Try again.';
+      } else if (e.error !== 'aborted') {
+        document.getElementById('status').textContent = `⚠️ Error: ${e.error}`;
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error(err);
+      document.getElementById('status').textContent = '❌ Cannot start speech recognition';
+    }
+  });
+
+  // Test mic permission button
+  document.getElementById('testMicBtn').addEventListener('click', async () => {
+    const status = document.getElementById('status');
+    status.textContent = '⏳ Testing microphone permission...';
+    const granted = await requestMicPermission();
+    if (granted) {
+      status.textContent = '✅ Microphone is working! Click 🎤 to speak.';
+    } else {
+      status.textContent = '❌ Microphone blocked. Click 🔒 in address bar → Allow Microphone.';
+    }
+  });
+} else {
+  document.getElementById('micBtn').style.display = 'none';
+  document.getElementById('status').textContent = '⚠️ Speech recognition not supported in this browser. Use Chrome.';
+}
+
+// ========== FILE ATTACHMENTS ==========
+const attachedFiles = [];
+document.getElementById('attachBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  for (const file of e.target.files) {
+    if (!file.type.startsWith('image/')) { alert('Only images are supported'); continue; }
+    if (file.size > 5 * 1024 * 1024) { alert('File too large (max 5MB)'); continue; }
+    const dataUrl = await new Promise(r => {
+      const reader = new FileReader();
+      reader.onload = () => r(reader.result);
+      reader.readAsDataURL(file);
+    });
+    attachedFiles.push({ file, dataUrl });
+    const item = document.createElement('div');
+    item.className = 'previewItem';
+    item.innerHTML = `<img src="${dataUrl}"><span>${file.name.substring(0, 15)}</span><button class="remove">✕</button>`;
+    item.querySelector('.remove').addEventListener('click', () => {
+      const i = attachedFiles.findIndex(f => f.file === file);
+      if (i > -1) attachedFiles.splice(i, 1);
+      item.remove();
+    });
+    document.getElementById('previewBar').appendChild(item);
+  }
+  e.target.value = '';
+});
+
+// ========== SEND MESSAGE ==========
+const promptInput = document.getElementById('promptInput');
+const sendBtn = document.getElementById('sendBtn');
+
+sendBtn.addEventListener('click', sendMessage);
+promptInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+async function sendMessage() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const model = document.getElementById('modelSelect').value;
+  const prompt = promptInput.value.trim();
+  const speak = document.getElementById('speakToggle').checked;
+  const status = document.getElementById('status');
+
+  if (!apiKey) { alert('Please enter your OpenRouter API key'); return; }
+  if (!model) { alert('Please select a model'); return; }
+  if (!prompt && attachedFiles.length === 0) { alert('Please enter a message'); return; }
+
+  if (currentRecognition) currentRecognition.stop();
+
+  addMessage('user', prompt || '[Image attached]');
+  promptInput.value = '';
+  promptInput.style.height = 'auto';
+
+  let content;
+  if (attachedFiles.length > 0) {
+    const imgs = attachedFiles.filter(f => f.file.type.startsWith('image/')).map(f => ({
+      type: 'image_url', image_url: { url: f.dataUrl }
+    }));
+    content = prompt ? [{ type: 'text', text: prompt }, ...imgs] : imgs;
+  } else {
+    content = prompt;
+  }
+
+  messages.push({ role: 'user', content });
+  attachedFiles.length = 0;
+  document.getElementById('previewBar').innerHTML = '';
+
+  status.textContent = '⏳ AI is thinking...';
+  sendBtn.disabled = true;
+
+  const thinking = document.createElement('div');
+  thinking.className = 'msg assistant';
+  thinking.textContent = '...';
+  chatContainer.appendChild(thinking);
+  chatContainer.scrollTop = chatContainer.scrollHeight;
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages: messages.map(m => ({ role: m.role, content: m.content })) })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errText.substring(0, 100)}`);
+    }
+
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content || '[No response]';
+
+    thinking.remove();
+    addMessage('assistant', reply);
+    messages.push({ role: 'assistant', content: reply });
+
+    if (document.getElementById('saveHistory').checked) {
+      localStorage.setItem('or_chat', JSON.stringify(messages));
+    }
+
+    status.textContent = '✅ Reply received!';
+
+    if (speak && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(reply);
+      utterance.rate = 1;
+      window.speechSynthesis.speak(utterance);
+    }
+  } catch (err) {
+    thinking.textContent = `❌ Error: ${err.message}`;
+    status.textContent = '❌ Request failed';
+    console.error(err);
+  }
+
+  sendBtn.disabled = false;
+}
+
+// ========== LOAD HISTORY ==========
+try {
+  const saved = JSON.parse(localStorage.getItem('or_chat') || '[]');
+  if (saved.length) {
+    messages = saved;
+    saved.forEach(m => addMessage(m.role, m.content));
+    document.getElementById('status').textContent = `✅ Loaded ${saved.length} messages`;
+  }
+} catch (e) { messages = []; }
+
+// ========== CLEAR CHAT ==========
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (confirm('Clear all messages?')) {
+    messages = [];
+    chatContainer.innerHTML = '';
+    localStorage.removeItem('or_chat');
+    document.getElementById('status').textContent = '🗑️ Chat cleared';
+  }
+});
+
+// ========== AUTO RESIZE TEXTAREA ==========
+promptInput.addEventListener('input', () => {
+  promptInput.style.height = 'auto';
+  promptInput.style.height = Math.min(promptInput.scrollHeight, 120) + 'px';
+});
+</script>
+
+</body>
+</html>
